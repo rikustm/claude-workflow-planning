@@ -20,8 +20,8 @@
                 doesn't add to box size unlike border-b -->
     <div class="group relative mb-3">
       <input
-        v-if="editingField === 'title' || isNew"
-        v-auto-focus="editingField === 'title' || isNew"
+        v-if="editingField === 'title'"
+        v-auto-focus="editingField === 'title'"
         v-model="form.title"
         placeholder="Workflow title"
         class="w-full text-2xl font-bold text-gray-900 bg-transparent border-0 py-0 rounded-md outline-none [box-shadow:0_0_0_3px_#818cf8] px-1.5"
@@ -117,7 +117,7 @@
             <!-- Step title: font-semibold, no padding, shadow underline keeps same line height -->
             <div class="group relative">
               <input
-                v-if="editingField === `step-${idx}-title` || isNew"
+                v-if="editingField === `step-${idx}-title`"
                 v-auto-focus="editingField === `step-${idx}-title`"
                 v-model="step.title"
                 placeholder="Step title"
@@ -140,7 +140,7 @@
             <!-- Step description: min-h-[40px] locks both states to 2 × text-sm lines -->
             <div class="group relative">
               <textarea
-                v-if="editingField === `step-${idx}-description` || isNew"
+                v-if="editingField === `step-${idx}-description`"
                 v-auto-focus="editingField === `step-${idx}-description`"
                 v-model="step.description"
                 placeholder="Description (optional)"
@@ -163,7 +163,7 @@
             <!-- Step assignee: text-xs, same height in both states -->
             <div class="group relative">
               <input
-                v-if="editingField === `step-${idx}-assignee` || isNew"
+                v-if="editingField === `step-${idx}-assignee`"
                 v-auto-focus="editingField === `step-${idx}-assignee`"
                 v-model="step.assignee"
                 placeholder="Assignee (optional)"
@@ -216,8 +216,8 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { ref, computed, onMounted, watch } from 'vue'
+import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router'
 import { useWorkflowStore } from '../stores/workflows.js'
 
 // Only focus when the binding value is truthy — prevents all inputs grabbing focus simultaneously in new mode
@@ -227,7 +227,8 @@ const route = useRoute()
 const router = useRouter()
 const store = useWorkflowStore()
 
-const isNew = computed(() => route.params.id === 'new')
+// Static route /workflows/new has no :id param, so params.id is undefined — not 'new'
+const isNew = computed(() => !route.params.id)
 const editingField = ref(null)
 const previousValue = ref(null)
 const form = ref({ title: '', description: '', category: '', steps: [] })
@@ -237,6 +238,17 @@ onMounted(async () => {
     await store.fetchOne(route.params.id)
     populateForm(store.current)
   } else {
+    editingField.value = 'title'
+  }
+})
+
+watch(() => route.params.id, async (id) => {
+  editingField.value = null
+  if (id) {
+    await store.fetchOne(id)
+    populateForm(store.current)
+  } else {
+    form.value = { title: '', description: '', category: '', steps: [] }
     editingField.value = 'title'
   }
 })
@@ -273,7 +285,7 @@ function startEdit(field) {
   editingField.value = field
 }
 
-async function saveField(field) {
+async function saveField(_field) {
   editingField.value = null
   previousValue.value = null
   if (route.params.id) {
@@ -301,11 +313,20 @@ async function removeStep(idx) {
   if (!isNew.value) await store.update(route.params.id, form.value)
 }
 
+const justCreated = ref(false)
+
 async function handleCreate() {
   if (!form.value.title.trim()) return
   const w = await store.create(form.value)
+  justCreated.value = true
   router.push(`/workflows/${w._id}`)
 }
+
+onBeforeRouteLeave(() => {
+  if (!justCreated.value && isNew.value && form.value.title.trim()) {
+    return confirm('You have unsaved changes. Leave without creating the workflow?')
+  }
+})
 
 async function handleDelete() {
   if (!confirm('Delete this workflow?')) return
