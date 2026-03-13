@@ -43,7 +43,7 @@
     <!-- Category — outer div is always the flex row so both states share the same container -->
     <div class="group relative mb-5 flex items-center gap-2">
       <input
-        v-if="editingField === 'category' || isNew"
+        v-if="editingField === 'category'"
         v-auto-focus="editingField === 'category'"
         v-model="form.category"
         placeholder="Category (optional)"
@@ -67,7 +67,7 @@
     <!-- Description — outer div is always the flex row so both states share the same container -->
     <div class="group relative mb-8 flex items-start gap-2">
       <textarea
-        v-if="editingField === 'description' || isNew"
+        v-if="editingField === 'description'"
         v-auto-focus="editingField === 'description'"
         v-model="form.description"
         placeholder="Describe this workflow..."
@@ -233,9 +233,11 @@ const previousValue = ref(null)
 const form = ref({ title: '', description: '', category: '', steps: [] })
 
 onMounted(async () => {
-  if (!isNew.value) {
+  if (route.params.id) {
     await store.fetchOne(route.params.id)
     populateForm(store.current)
+  } else {
+    editingField.value = 'title'
   }
 })
 
@@ -272,10 +274,11 @@ function startEdit(field) {
 }
 
 async function saveField(field) {
-  if (isNew.value) return
   editingField.value = null
   previousValue.value = null
-  await store.update(route.params.id, form.value)
+  if (route.params.id) {
+    await store.update(route.params.id, form.value)
+  }
 }
 
 function cancelEdit(field) {
